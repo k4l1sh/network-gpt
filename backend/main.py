@@ -10,6 +10,7 @@ from ipaddress import ip_network, IPv4Network
 import traceback
 import sys
 import netifaces
+from scapy.all import sniff, IP, TCP, UDP
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', filename='logs.log')

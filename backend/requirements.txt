@@ -1,0 +1,7 @@
+fastapi
+openai
+python-nmap
+python-dotenv
+netifaces
+scapy
+uvicorn
