@@ -1,0 +1,24 @@
+.message-display {
+    @apply overflow-y-auto flex-grow p-2 mb-3;
+  }
+  
+  .message {
+    @apply my-2 p-2 rounded-lg text-left break-words;
+  }
+  
+  .message.user {
+    @apply bg-green-950 text-white self-end;
+  }
+  
+  .message.bot {
+    @apply bg-black text-green-500 self-start;
+  }
+  
+  .message-text {
+    @apply text-sm;
+  }
+  
+  .message-time {
+    @apply text-xs text-gray-300;
+  }
+  

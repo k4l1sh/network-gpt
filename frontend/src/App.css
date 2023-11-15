@@ -1,0 +1,22 @@
+.App {
+  text-align: center;
+  background-color: black;
+  color: limegreen;
+  font-family: monospace, 'Courier New', Courier;
+  height: 100vh;
+}
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #000; 
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4A5568; 
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2D3748; 
+}

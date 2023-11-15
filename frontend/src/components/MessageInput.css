@@ -1,0 +1,11 @@
+.message-input {
+    @apply flex mt-3;
+  }
+  
+  .message-input input {
+    @apply flex-grow p-2 mr-2 border border-green-500 bg-black text-green-500;
+  }
+  
+  .message-input button {
+    @apply p-2 border border-green-500 bg-green-500 text-black cursor-pointer;
+  }

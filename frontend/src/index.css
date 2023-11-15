@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body, html {
+  margin: 0;
+  padding: 0;
+}
+
+.ascii-art {
+  white-space: pre;
+  font-family: 'Courier New', monospace;
+  color: limegreen;
+  background-color: black;
+  padding: 10px 0;
+}
