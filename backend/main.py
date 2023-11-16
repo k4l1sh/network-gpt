@@ -1,6 +1,7 @@
 import os
 import json
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 import openai
 import nmap
 from dotenv import load_dotenv
@@ -11,15 +12,26 @@ import traceback
 import sys
 import netifaces
 from scapy.all import sniff, IP, TCP, UDP
+from pydantic import BaseModel
+from fastapi.responses import StreamingResponse
+from time import sleep
+import socket
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', filename='logs.log')
 # Set OpenAI API key
 openai.api_key = os.getenv('OPENAI_API_KEY')
-llm_model = "gpt-3.5-turbo"
 
 # Initialize FastAPI app
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Function to perform network scan on a single host
 def scan_single_host(host, arguments=''):
@@ -35,18 +47,40 @@ def scan_single_host(host, arguments=''):
         for protocol in nm[host].all_protocols():
             lport = nm[host][protocol].keys()
             for port in lport:
-                host_info["ports"][port] = nm[host][protocol][port]
+                port_info = {k: v for k, v in nm[host][protocol][port].items() if v}
+                if port_info:
+                    host_info["ports"][port] = port_info
+        if not host_info["ports"]:
+            del host_info["ports"]
+        if not any(host_info["ports"].get(p) for p in host_info["protocols"]):
+            del host_info["protocols"]
         logging.info(f"Host {host}: {host_info}")
         return host, host_info
     except Exception:
         #logging.error(f"Error during scan of {host}: {''.join(traceback.format_exception(*sys.exc_info()))}")
         return host, {}
 
+def is_valid_ip_network(address):
+    try:
+        ip_network(address)
+        return True
+    except ValueError:
+        return False
+    
+def get_host_by_name(address):
+    try:
+        return socket.gethostbyname(address)
+    except socket.gaierror:
+        return address
+    
 # Function to perform network scan
 def network_scan(hosts, arguments=''):
     logging.info(f"Starting network scan for hosts {hosts} with arguments {arguments}")
     scan_results = {}
-    hosts_list = [str(ip) for ip in ip_network(hosts).hosts()]
+    if is_valid_ip_network(hosts):
+        hosts_list = [str(ip) for ip in ip_network(hosts).hosts()]
+    else:
+        hosts_list = [get_host_by_name(hosts)]
     with ThreadPoolExecutor(max_workers=64) as executor:
         future_to_host = {executor.submit(scan_single_host, host, arguments): host for host in hosts_list}
         for future in as_completed(future_to_host):
@@ -94,18 +128,50 @@ signature_network_scan = {
             },
             "own_network": {
                 "type": "boolean",
-                "description": "Detect if the user intends to scan their own network"
+                "description": "Detect if the user intends to scan their network"
             }
         },
         "required": ["hosts"]
     }
 }
 
+def log_streamer():
+    with open('logs.log', 'r') as f:
+        f.seek(0, 2)
+        while True:
+            line = f.readline()
+            if not line:
+                sleep(0.1)
+                continue
+            yield f"data: {line}\n\n"
+
+@app.get("/streamlogs/")
+async def stream_logs():
+    return StreamingResponse(log_streamer(), media_type="text/event-stream")
+
+# Helper functions for token estimation and limiting context
+def estimate_token_count(message):
+    words = message.split()
+    return len(words) * 4
+
+def limit_context_to_max_tokens(messages, max_tokens=10000):
+    limited_messages = []
+    total_tokens = 0
+    for message in reversed(messages):
+        msg_token_count = estimate_token_count(message["content"])
+        if total_tokens + msg_token_count <= max_tokens:
+            total_tokens += msg_token_count
+            limited_messages.append(message)
+        else:
+            break
+    return list(reversed(limited_messages))
+
 # Function to call ChatGPT API
-def chat_with_openai(messages, function_call="auto"):
+def chat_with_openai(messages, model, function_call="auto"):
     try:
+        logging.info('Calling GPT API...')
         res = openai.ChatCompletion.create(
-            model=llm_model,
+            model=model,
             messages=messages,
             functions=[signature_network_scan],
             function_call=function_call
@@ -114,15 +180,22 @@ def chat_with_openai(messages, function_call="auto"):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class Message(BaseModel):
+    message: list
+    model: str
+
 # Endpoint to receive and process message
 @app.post("/networkgpt/")
-async def process_message(message: str):
-    llm_system_prompt = """You are a virtual assistant with the capability to process text requests and perform specific functions. 
+async def networkgpt(message_data: Message):
+    message = message_data.message
+    model = message_data.model
+    messages = limit_context_to_max_tokens(message)
+    llm_system_prompt = """You are Network GPT, a virtual assistant with the capability to process text requests and perform specific network functions. 
 If a user requests a network scan, invoke the 'network_scan' function to initiate the scan.
 Otherwise, respond with appropriate information or guidance based on the user's request.
 """
-    messages = [{"role": "system", "content": llm_system_prompt}, {"role": "user", "content": message}]
-    res = chat_with_openai(messages)
+    messages.insert(0, {"role": "system", "content": llm_system_prompt})
+    res = chat_with_openai(messages, model)
 
     # Check for network scan function call
     response = res["choices"][0]["message"]

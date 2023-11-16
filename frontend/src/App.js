@@ -16,15 +16,41 @@ function App() {
     localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
   }, [chatHistory]);
 
-  const handleNewMessage = (message) => {
+  const handleNewMessage = async (message) => {
     const newMessage = { text: message, sender: 'user', timestamp: new Date() };
-    setChatHistory([...chatHistory, newMessage]);
-    // Here you would call your GPT API
-    // Simulate a response for now
-    setTimeout(() => {
-      const botResponse = { text: 'Simulated Response', sender: 'bot', timestamp: new Date() };
+    const loadingMessage = { id: 'loading', text: '', sender: 'bot', timestamp: new Date(), loading: true };
+    setChatHistory([...chatHistory, newMessage, loadingMessage]);
+    try {
+      const transformedHistory = chatHistory
+      .filter(msg => !msg.loading)
+      .map(msg => ({
+        role: msg.sender === 'user' ? 'user' : 'assistant',
+        content: msg.text
+      }));
+      const response = await fetch('http://0.0.0.0:8000/networkgpt/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ message: transformedHistory, model: "gpt-3.5-turbo" })
+      });
+
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      setChatHistory(currentChatHistory => currentChatHistory.filter(msg => msg.id !== 'loading'));
+      const botResponse = { text: JSON.stringify(data.response), sender: 'bot', timestamp: new Date() };
       setChatHistory(chat => [...chat, botResponse]);
-    }, 10);
+
+    } catch (error) {
+      console.error("Failed to send message: ", error);
+      setChatHistory(currentChatHistory => currentChatHistory.filter(msg => msg.id !== 'loading'));
+      const botResponse = { text: 'Failed to get response', sender: 'bot', timestamp: new Date() };
+      setChatHistory(chat => [...chat, botResponse]);
+    }
   };
 
   const asciiArtTitle = `
@@ -40,11 +66,10 @@ function App() {
   return (
     <div className="App h-screen flex flex-col sm:p-5 p-2">
       <div className="hidden sm:block">
-
         <pre className="ascii-art whitespace-pre font-terminal text-terminal-green bg-black p-2.5">{asciiArtTitle}</pre>
       </div>
-      <div className="sm:hidden text-2xl font-mono text-terminal-green bg-black p-2.5">
-        Network GPT
+      <div className="sm:hidden">
+        <pre className="mini-ascii-art whitespace-pre font-terminal text-terminal-green bg-black p-2.5">{asciiArtTitle}</pre>
       </div>
       <ChatWindow chatHistory={chatHistory} onNewMessage={handleNewMessage} />
     </div>

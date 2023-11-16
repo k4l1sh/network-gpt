@@ -20,5 +20,39 @@
   
   .message-time {
     @apply text-xs text-gray-300;
+  }  
+
+  @keyframes blink-caret {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
   }
   
+
+  @keyframes ellipsis {
+    0%, 100%  { content: '> .'; }
+    33% { content: '> ..'; }
+    66% { content: '> ...'; }
+  }
+
+  .caret {
+    animation: blink-caret 1s steps(1) infinite;
+    border-right: 2px solid limegreen;
+  }
+  
+  
+  .terminal {
+    display: inline-block;
+    text-align: left;
+    vertical-align: top;
+    overflow: hidden;
+  }
+  
+  .terminal::after {
+    content: '';
+    display: inline-block;
+    animation: ellipsis 1.5s infinite;
+  }

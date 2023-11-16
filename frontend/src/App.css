@@ -20,3 +20,19 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #2D3748; 
 }
+.ascii-art {
+  font-size: 10px; /* Adjust the font size as needed */
+  white-space: pre;
+  font-family: 'Courier New', monospace;
+  color: limegreen;
+  background-color: black;
+  padding: 10px 0;
+}
+.mini-ascii-art {
+  font-size: 4px; /* Adjust the font size as needed */
+  white-space: pre;
+  font-family: 'Courier New', monospace;
+  color: limegreen;
+  background-color: black;
+  padding: 10px 0;
+}
