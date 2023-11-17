@@ -17,7 +17,7 @@ const MessageDisplay = ({ chatHistory }) => {
   }, [chatHistory, streamingMessages]);
 
   const startStreaming = () => {
-    eventSourceRef.current = new EventSource('http://0.0.0.0:8000/streamlogs/');
+    eventSourceRef.current = new EventSource('http://0.0.0.0:8000/api/streamlogs/');
     eventSourceRef.current.onmessage = (event) => {
       setStreamingMessages(currentMessages => [...currentMessages, event.data]);
     };

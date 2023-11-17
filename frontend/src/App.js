@@ -8,7 +8,7 @@ function App() {
   useEffect(() => {
     const savedChatHistory = localStorage.getItem('chatHistory');
     if (savedChatHistory) {
-      setChatHistory(JSON.parse(savedChatHistory));
+      //setChatHistory(JSON.parse(savedChatHistory));
     }
   }, []);
 
@@ -26,7 +26,7 @@ function App() {
         role: msg.sender === 'user' ? 'user' : 'assistant',
         content: msg.text
       }));
-      const response = await fetch('http://0.0.0.0:8000/networkgpt/', {
+      const response = await fetch('http://0.0.0.0:8000/api/networkgpt/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
