@@ -21,8 +21,7 @@ function App() {
     const loadingMessage = { id: 'loading', text: '', sender: 'bot', timestamp: new Date(), loading: true };
     setChatHistory([...chatHistory, newMessage, loadingMessage]);
     try {
-      const transformedHistory = chatHistory
-      .filter(msg => !msg.loading)
+      const transformedHistory = [...chatHistory, newMessage]
       .map(msg => ({
         role: msg.sender === 'user' ? 'user' : 'assistant',
         content: msg.text
@@ -33,16 +32,14 @@ function App() {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({ message: transformedHistory, model: "gpt-3.5-turbo" })
-      });
-
-      
+        body: JSON.stringify({ message: transformedHistory, model: "gpt-3.5-turbo-1106" })
+      });      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
       setChatHistory(currentChatHistory => currentChatHistory.filter(msg => msg.id !== 'loading'));
-      const botResponse = { text: JSON.stringify(data.response), sender: 'bot', timestamp: new Date() };
+      const botResponse = { text: data.response.replace(/\n/g, '<br/>'), sender: 'bot', timestamp: new Date() };
       setChatHistory(chat => [...chat, botResponse]);
 
     } catch (error) {

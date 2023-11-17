@@ -1,25 +1,24 @@
-from scapy.all import sniff, IP, TCP, UDP
+import requests
+import socket
 
-def capture_packet_info(packet):
-    packet_info = {}
-    if IP in packet:
-        packet_info['src_ip'] = packet[IP].src
-        packet_info['dst_ip'] = packet[IP].dst
-    if TCP in packet:
-        packet_info['protocol'] = 'TCP'
-        packet_info['src_port'] = packet[TCP].sport
-        packet_info['dst_port'] = packet[TCP].dport
-
-    elif UDP in packet:
-        packet_info['protocol'] = 'UDP'
-        packet_info['src_port'] = packet[UDP].sport
-        packet_info['dst_port'] = packet[UDP].dport
-    return packet_info
-
-def capture_packets(duration=3):
-    packets = sniff(timeout=duration)
-    return [capture_packet_info(packet) for packet in packets]
-
-print(capture_packets())
-""" import json
-print(json.dumps(capture_packets(), indent=4)) """
+def get_ip_address(public=False):
+    if public:
+        try:
+            response = requests.get('https://api.ipify.org?format=json')
+            return response.json().get('ip', 'Unable to get public IP')
+        except requests.RequestException:
+            return 'Error: Unable to get public IP'
+    else:
+        # Get private IP address
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # Doesn't even have to be reachable
+            s.connect(('10.255.255.255', 1))
+            IP = s.getsockname()[0]
+        except Exception:
+            IP = '127.0.0.1'
+        finally:
+            s.close()
+        return IP
+    
+print(get_ip_address())

@@ -20,7 +20,7 @@
   
   .message-time {
     @apply text-xs text-gray-300;
-  }  
+  }
 
   @keyframes blink-caret {
     0%, 100% {
@@ -31,7 +31,6 @@
     }
   }
   
-
   @keyframes ellipsis {
     0%, 100%  { content: '> .'; }
     33% { content: '> ..'; }

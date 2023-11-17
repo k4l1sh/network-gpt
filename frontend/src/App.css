@@ -4,6 +4,7 @@
   color: limegreen;
   font-family: monospace, 'Courier New', Courier;
   height: 100vh;
+  scrollbar-color: limegreen #052e16;
 }
 ::-webkit-scrollbar {
   width: 10px;
@@ -14,14 +15,16 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4A5568; 
+  background-color: limegreen;
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #2D3748; 
+  background-color: #052e16;
 }
+
 .ascii-art {
-  font-size: 10px; /* Adjust the font size as needed */
+  font-size: 10px;
   white-space: pre;
   font-family: 'Courier New', monospace;
   color: limegreen;
@@ -29,7 +32,7 @@
   padding: 10px 0;
 }
 .mini-ascii-art {
-  font-size: 4px; /* Adjust the font size as needed */
+  font-size: 4px;
   white-space: pre;
   font-family: 'Courier New', monospace;
   color: limegreen;

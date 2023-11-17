@@ -15,7 +15,7 @@ const MessageInput = ({ onNewMessage }) => {
   return (
     <form onSubmit={handleSubmit} className="message-input sm:flex sm:items-center">
       <input
-        className="flex-grow p-2 border border-green-500 bg-black text-green-500"
+        className="flex-grow p-2 border border-green-500 bg-black text-green-500 focus:outline-green-300"
         type="text"
         value={message}
         onChange={(e) => setMessage(e.target.value)}

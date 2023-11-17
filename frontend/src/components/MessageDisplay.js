@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import parse from 'html-react-parser';
+
 import './MessageDisplay.css';
 
 const MessageDisplay = ({ chatHistory }) => {
@@ -12,7 +14,7 @@ const MessageDisplay = ({ chatHistory }) => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [chatHistory]);
+  }, [chatHistory, streamingMessages]);
 
   const startStreaming = () => {
     eventSourceRef.current = new EventSource('http://0.0.0.0:8000/streamlogs/');
@@ -24,7 +26,6 @@ const MessageDisplay = ({ chatHistory }) => {
       eventSourceRef.current.close();
     };
   };
-
   const stopStreaming = () => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
@@ -32,7 +33,6 @@ const MessageDisplay = ({ chatHistory }) => {
       eventSourceRef.current = null;
     }
   };
-
   useEffect(() => {
     const isLoadingMessagePresent = chatHistory.some(message => message.loading);
     if (isLoadingMessagePresent && !eventSourceRef.current) {
@@ -59,7 +59,7 @@ const MessageDisplay = ({ chatHistory }) => {
                 <span className="caret"></span>
               </>
             ) : (
-              message.text
+              parse(message.text)
             )}
           </div>
           {message.sender === 'user' && !message.loading && (

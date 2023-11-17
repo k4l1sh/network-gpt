@@ -16,6 +16,10 @@ from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 from time import sleep
 import socket
+import re
+from collections import defaultdict
+import subprocess
+import requests
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', filename='logs.log')
@@ -80,6 +84,9 @@ def network_scan(hosts, arguments=''):
     if is_valid_ip_network(hosts):
         hosts_list = [str(ip) for ip in ip_network(hosts).hosts()]
     else:
+        ipv4_regex = r'(\b25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(\b25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(\b25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(\b25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
+        hosts_list = [".".join(match) for match in re.findall(ipv4_regex, hosts)]
+    if not hosts_list:
         hosts_list = [get_host_by_name(hosts)]
     with ThreadPoolExecutor(max_workers=64) as executor:
         future_to_host = {executor.submit(scan_single_host, host, arguments): host for host in hosts_list}
@@ -111,6 +118,64 @@ def get_own_subnet():
     network = IPv4Network(f"{ip_address}/{netmask}", strict=False)
     return str(network)
 
+def capture_packet_info(packet):
+    packet_info = {}
+    if IP in packet:
+        packet_info['src_ip'] = packet[IP].src
+        packet_info['dst_ip'] = packet[IP].dst
+    if TCP in packet:
+        packet_info['protocol'] = 'TCP'
+        packet_info['src_port'] = packet[TCP].sport
+        packet_info['dst_port'] = packet[TCP].dport
+
+    elif UDP in packet:
+        packet_info['protocol'] = 'UDP'
+        packet_info['src_port'] = packet[UDP].sport
+        packet_info['dst_port'] = packet[UDP].dport
+    return packet_info
+
+def capture_packets(duration=15):
+    logging.info(f"Capturing packets for {duration} seconds")
+    packets = sniff(timeout=duration)
+    packet_counts = defaultdict(int)
+    for packet in packets:
+        packet_info = capture_packet_info(packet)
+        packet_key = tuple(packet_info.items())
+        packet_counts[packet_key] += 1
+    aggregated_packets = [{"count": count, **dict(packet_key)} for packet_key, count in packet_counts.items()]
+    return aggregated_packets
+
+def ping_host(host, count=4):
+    logging.info(f"Sending {count} requests to {host}")
+    try:
+        output = subprocess.check_output(['ping', '-c', str(count), host], stderr=subprocess.STDOUT, universal_newlines=True)
+        results = output
+    except subprocess.CalledProcessError as e:
+        results = str(e.output)
+    return results.replace("\n", "<br/>")
+    
+def get_ip_address(private=True):
+    if private:
+        logging.info("Capturing private ip")
+        # Get private IP address
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # Doesn't even have to be reachable
+            s.connect(('10.255.255.255', 1))
+            IP = s.getsockname()[0]
+        except Exception:
+            IP = '127.0.0.1'
+        finally:
+            s.close()
+        return IP
+    else:
+        logging.info("Capturing public ip")
+        try:
+            response = requests.get('https://api.ipify.org?format=json')
+            return response.json().get('ip', 'Unable to get public IP')
+        except requests.RequestException:
+            return 'Error: Unable to get public IP'
+
 # Network scan function signature for ChatGPT
 signature_network_scan = {
     "name": "network_scan",
@@ -134,6 +199,59 @@ signature_network_scan = {
         "required": ["hosts"]
     }
 }
+
+signature_capture_packets = {
+    "name": "capture_packets",
+    "description": "Capture network packets for and aggregate them",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "duration": {
+                "type": "integer",
+                "description": "Duration in seconds for which to capture packets",
+                "default": 5
+            }
+        },
+        "required": []
+    }
+}
+
+signature_ping = {
+    "name": "ping_host",
+    "description": "Ping a specified host to check its reachability",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "host": {
+                "type": "string",
+                "description": "The host to ping"
+            },
+            "count": {
+                "type": "integer",
+                "description": "Number of echo requests to send",
+                "default": 4
+            }
+        },
+        "required": ["host"]
+    }
+}
+
+signature_get_ip = {
+    "name": "get_ip_address",
+    "description": "Get my IP address",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "private": {
+                "type": "boolean",
+                "description": "Flag to indicate if the private IP should be retrieved instead of the public IP",
+                "default": True
+            }
+        },
+        "required": []
+    }
+}
+
 
 def log_streamer():
     with open('logs.log', 'r') as f:
@@ -173,7 +291,7 @@ def chat_with_openai(messages, model, function_call="auto"):
         res = openai.ChatCompletion.create(
             model=model,
             messages=messages,
-            functions=[signature_network_scan],
+            functions=[signature_network_scan, signature_capture_packets, signature_ping, signature_get_ip],
             function_call=function_call
         )
         return res
@@ -201,8 +319,9 @@ Otherwise, respond with appropriate information or guidance based on the user's 
     response = res["choices"][0]["message"]
     if response.get("function_call"):
         function_name = response["function_call"]["name"]
+        function_results = {}
+        args = json.loads(response["function_call"]["arguments"])
         if function_name == "network_scan":
-            args = json.loads(response["function_call"]["arguments"])
             if args.get("own_network"):
                 hosts = get_own_subnet()
             else:
@@ -211,8 +330,17 @@ Otherwise, respond with appropriate information or guidance based on the user's 
                 hosts=hosts,
                 arguments=args.get("arguments", "")
             )
-            messages.append({"role": "function", "name": "network_scan", "content": scan_results})
-        return {"response": scan_results}
+            function_results['scan_results'] = scan_results
+        if function_name == "capture_packets":
+            packet_results = capture_packets(duration=args.get("duration", 5))
+            function_results['packet_results'] = packet_results
+        if function_name == "ping_host":
+            ping_results = ping_host(host=args.get("host"), count=args.get("count", 4))
+            function_results['ping_results'] = ping_results
+        if function_name == "get_ip_address":
+            ip_results = get_ip_address(private=args.get("private", True))
+            function_results['my_ip'] = ip_results
+        return {"response": json.dumps(function_results)}
     else:
         return {"response": res["choices"][0]["message"]["content"]}
 
