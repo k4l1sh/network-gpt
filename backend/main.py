@@ -7,7 +7,7 @@ import nmap
 from dotenv import load_dotenv
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from ipaddress import ip_network, IPv4Network
+from ipaddress import ip_network, IPv4Network, IPv4Address
 import traceback
 import sys
 import netifaces
@@ -78,9 +78,9 @@ def get_host_by_name(address):
         return address
     
 # Function to perform network scan
-def network_scan(hosts, arguments=''):
+def network_scan(hosts=None, arguments=''):
     logging.info(f"Starting network scan for hosts {hosts} with arguments {arguments}")
-    scan_results = {}
+    scan = {'host':hosts,'arguments':arguments,'results':{}}
     if is_valid_ip_network(hosts):
         hosts_list = [str(ip) for ip in ip_network(hosts).hosts()]
     else:
@@ -88,18 +88,18 @@ def network_scan(hosts, arguments=''):
         hosts_list = [".".join(match) for match in re.findall(ipv4_regex, hosts)]
     if not hosts_list:
         hosts_list = [get_host_by_name(hosts)]
-    with ThreadPoolExecutor(max_workers=64) as executor:
+    with ThreadPoolExecutor(max_workers=256) as executor:
         future_to_host = {executor.submit(scan_single_host, host, arguments): host for host in hosts_list}
         for future in as_completed(future_to_host):
             host = future_to_host[future]
             try:
                 _, host_info = future.result()
                 if host_info:
-                    scan_results[host] = host_info
+                    scan['results'][host] = host_info
             except Exception:
                 logging.error(traceback.format_exception(*sys.exc_info()))
     logging.info(f"Network scan completed successfully for the hosts {hosts} and arguments {arguments}")
-    return scan_results
+    return scan
 
 # Function to get the server's own subnet
 def get_own_subnet():
@@ -107,13 +107,14 @@ def get_own_subnet():
     gws = netifaces.gateways()
     default_gateway = gws['default'][netifaces.AF_INET]
     gateway, interface = default_gateway
-
     # Get the IP address and netmask of the interface
     addrs = netifaces.ifaddresses(interface)
     ip_info = addrs[netifaces.AF_INET][0]
     ip_address = ip_info['addr']
-    netmask = ip_info['netmask']
-
+    # Convert netmask to CIDR notation
+    netmask_cidr = ip_network(f"0.0.0.0/{ip_info['netmask']}").prefixlen
+    # Ensure a minimum netmask of 24
+    netmask = max(netmask_cidr, 24)
     # Calculate the network
     network = IPv4Network(f"{ip_address}/{netmask}", strict=False)
     return str(network)
@@ -154,32 +155,29 @@ def ping_host(host, count=4):
         results = str(e.output)
     return results.replace("\n", "<br/>")
     
-def get_ip_address(private=True):
-    if private:
-        logging.info("Capturing private ip")
-        # Get private IP address
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            # Doesn't even have to be reachable
-            s.connect(('10.255.255.255', 1))
-            IP = s.getsockname()[0]
-        except Exception:
-            IP = '127.0.0.1'
-        finally:
-            s.close()
-        return IP
-    else:
-        logging.info("Capturing public ip")
-        try:
-            response = requests.get('https://api.ipify.org?format=json')
-            return response.json().get('ip', 'Unable to get public IP')
-        except requests.RequestException:
-            return 'Error: Unable to get public IP'
+def get_ip_address():
+    logging.info("Capturing private ip")
+    # Get private IP address
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # Doesn't even have to be reachable
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    logging.info("Capturing public ip")
+    try:
+        response = requests.get('https://api.ipify.org?format=json')
+        return {'private':IP, 'public':response.json().get('ip', 'Unable to get public IP')}
+    except requests.RequestException:
+        return 'Error: Unable to get public IP'
 
 # Network scan function signature for ChatGPT
 signature_network_scan = {
     "name": "network_scan",
-    "description": "Perform a network scan using nmap",
+    "description": "Perform a network scan using nmap if the user wants a network scan",
     "parameters": {
         "type": "object",
         "properties": {
@@ -189,14 +187,14 @@ signature_network_scan = {
             },
             "arguments": {
                 "type": "string",
-                "description": "The arguments to pass to nmap, such as scan type and options"
+                "description": "The arguments to pass to nmap, such as scan type and options available in nmap"
             },
             "own_network": {
                 "type": "boolean",
-                "description": "Detect if the user intends to scan their network"
+                "description": "Detect if the user intends to scan their own network, otherwise set this to false"
             }
         },
-        "required": ["hosts"]
+        "required": []
     }
 }
 
@@ -238,16 +236,10 @@ signature_ping = {
 
 signature_get_ip = {
     "name": "get_ip_address",
-    "description": "Get my IP address",
+    "description": "Get my own IP address",
     "parameters": {
         "type": "object",
-        "properties": {
-            "private": {
-                "type": "boolean",
-                "description": "Flag to indicate if the private IP should be retrieved instead of the public IP",
-                "default": True
-            }
-        },
+        "properties": {},
         "required": []
     }
 }
@@ -263,7 +255,7 @@ def log_streamer():
                 continue
             yield f"data: {line}\n\n"
 
-@app.get("/streamlogs/")
+@app.get("/api/streamlogs/")
 async def stream_logs():
     return StreamingResponse(log_streamer(), media_type="text/event-stream")
 
@@ -303,13 +295,16 @@ class Message(BaseModel):
     model: str
 
 # Endpoint to receive and process message
-@app.post("/networkgpt/")
+@app.post("/api/networkgpt/")
 async def networkgpt(message_data: Message):
     message = message_data.message
     model = message_data.model
     messages = limit_context_to_max_tokens(message)
     llm_system_prompt = """You are Network GPT, a virtual assistant with the capability to process text requests and perform specific network functions. 
-If a user requests a network scan, invoke the 'network_scan' function to initiate the scan.
+If the last user message explicitly requests a network scan, invoke the 'network_scan' function to initiate the scan.
+If the last user message explicitly requests to capture their packets, invoke the 'capture_packets' function to initiate the capturing.
+If the last user message explicitly requests to ping, invoke the 'ping_host' function to ping a host.
+If the last user message explicitly requests their own IP address, invoke the 'get_ip_address' function to get their IP.
 Otherwise, respond with appropriate information or guidance based on the user's request.
 """
     messages.insert(0, {"role": "system", "content": llm_system_prompt})
@@ -325,12 +320,12 @@ Otherwise, respond with appropriate information or guidance based on the user's 
             if args.get("own_network"):
                 hosts = get_own_subnet()
             else:
-                hosts = args.get("hosts")
+                hosts = args.get("hosts", get_own_subnet())
             scan_results = network_scan(
                 hosts=hosts,
                 arguments=args.get("arguments", "")
             )
-            function_results['scan_results'] = scan_results
+            function_results['scan'] = scan_results
         if function_name == "capture_packets":
             packet_results = capture_packets(duration=args.get("duration", 5))
             function_results['packet_results'] = packet_results
@@ -338,7 +333,7 @@ Otherwise, respond with appropriate information or guidance based on the user's 
             ping_results = ping_host(host=args.get("host"), count=args.get("count", 4))
             function_results['ping_results'] = ping_results
         if function_name == "get_ip_address":
-            ip_results = get_ip_address(private=args.get("private", True))
+            ip_results = get_ip_address()
             function_results['my_ip'] = ip_results
         return {"response": json.dumps(function_results)}
     else:

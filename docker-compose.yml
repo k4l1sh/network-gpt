@@ -1,0 +1,31 @@
+version: '3.8'
+services:
+  frontend:
+    build:
+      context: ./frontend
+    image: networkgptfrontend:latest
+    container_name: networkgpt_frontend
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=put_your_openai_key_here
+    image: networkgptbackend:latest
+    container_name: networkgpt_backend
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    image: networkgpt:latest
+    container_name: networkgpt

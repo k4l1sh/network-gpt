@@ -1,7 +1,8 @@
-fastapi
-openai
-python-nmap
-python-dotenv
-netifaces
-scapy
-uvicorn
+fastapi==0.104.1
+openai==0.28.1
+python-nmap==0.6.1
+python-dotenv==0.20.0
+netifaces==0.11.0
+scapy==2.5.0
+uvicorn==0.24.0
+requests==2.31.0
