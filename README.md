@@ -1,4 +1,4 @@
-# NetworkGPT
+# Network GPT
 
 Run network commands in a web terminal-inspired interface powered by ChatGPT API.
 
@@ -16,7 +16,7 @@ Use spoken language to run Nmap or other network tools and chat with the results
 
 
 ## Introduction
-NetworkGPT offers a chat-based network management tool leveraging ChatGPT API for intuitive command execution and interaction. It aims to simplify network tasks like scanning, packet capture, and IP management through conversational input and output.
+Network GPT offers a chat-based network management tool leveraging ChatGPT API for intuitive command execution and interaction. It aims to simplify network tasks like scanning, packet capture, and IP management through conversational input and output.
 
 ## Features
 - **Network Scanning:** Automated tools for scanning network devices and services.
@@ -45,10 +45,10 @@ environment:
 ```bash
 docker-compose up
 ```
-5. Now access NetworkGPT that is configured to be accessible in http://localhost.
+5. Now access Network GPT that is configured to be accessible in http://localhost.
 
 ## Contributing
-Contributions to NetworkGPT are welcome. Follow the standard fork-branch-PR workflow for submitting contributions.
+Contributions to Network GPT are welcome. Follow the standard fork-branch-PR workflow for submitting contributions.
 
 ## Built With
 NGINX, FastAPI, React, TailwindCSS, Docker, Nmap, Scapy and ChatGPT API
