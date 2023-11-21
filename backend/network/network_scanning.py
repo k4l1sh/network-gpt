@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from ipaddress import ip_network
 from .ip_utils import is_valid_ip_network, get_host_by_name
 
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', filename='../logs.log')
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s', filename='logs.log')
 
 def scan_single_host(host, arguments=''):
     nm = nmap.PortScanner()

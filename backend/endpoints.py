@@ -8,8 +8,7 @@ from fastapi.responses import StreamingResponse
 from network.network_scanning import network_scan
 from network.packet_capture import capture_packets
 from network.ping_utils import ping_host
-from network.ip_address import get_ip_address
-from network.ip_utils import get_own_subnet
+from network.ip_utils import get_own_subnet, get_ip_address
 from dotenv import load_dotenv
 from time import sleep
 import json
@@ -136,8 +135,7 @@ If the last user message explicitly requests a network scan, invoke the 'network
 If the last user message explicitly requests to capture their packets, invoke the 'capture_packets' function to initiate the capturing.
 If the last user message explicitly requests to ping, invoke the 'ping_host' function to ping a host.
 If the last user message explicitly requests their own IP address, invoke the 'get_ip_address' function to get their IP.
-Otherwise, respond with appropriate information or guidance based on the user's request.
-"""
+Otherwise, respond with appropriate information or guidance based on the user's request."""
     messages.insert(0, {"role": "system", "content": llm_system_prompt})
     res = chat_with_openai(messages, model)
     response = res["choices"][0]["message"]
@@ -171,4 +169,5 @@ Otherwise, respond with appropriate information or guidance based on the user's 
         return {"response": res["choices"][0]["message"]["content"]}
 
 async def stream_logs():
+    logging.info('Streaming logs')
     return StreamingResponse(log_streamer(), media_type="text/event-stream")
