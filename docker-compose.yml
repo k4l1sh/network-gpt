@@ -12,7 +12,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - OPENAI_API_KEY=openai_api_key
+      - OPENAI_API_KEY=put_your_openai_api_key_here
     image: networkgptbackend:latest
     container_name: networkgpt_backend
     cap_add:
