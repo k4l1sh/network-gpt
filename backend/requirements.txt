@@ -1,4 +1,4 @@
-fastapi==0.104.1
+fastapi==0.109.1
 openai==0.28.1
 python-nmap==0.6.1
 python-dotenv==0.20.0
